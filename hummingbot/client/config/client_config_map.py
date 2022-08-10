@@ -23,6 +23,7 @@ from hummingbot.connector.connector_metrics_collector import (
 )
 from hummingbot.connector.exchange.ascend_ex.ascend_ex_utils import AscendExConfigMap
 from hummingbot.connector.exchange.binance.binance_utils import BinanceConfigMap
+from hummingbot.connector.exchange.elixir.elixir_utils import ElixirConfigMap
 from hummingbot.connector.exchange.gate_io.gate_io_utils import GateIOConfigMap
 from hummingbot.connector.exchange.kucoin.kucoin_utils import KuCoinConfigMap
 from hummingbot.connector.exchange_base import ExchangeBase
@@ -150,6 +151,7 @@ class PaperTradeConfigMap(BaseClientModel):
             KuCoinConfigMap.Config.title,
             AscendExConfigMap.Config.title,
             GateIOConfigMap.Config.title,
+            ElixirConfigMap.Config.title,
         ],
     )
     paper_trade_account_balance: Dict[str, float] = Field(
@@ -583,6 +585,7 @@ class CommandShortcutModel(BaseModel):
 class ClientConfigMap(BaseClientModel):
     instance_id: str = Field(default=generate_client_id())
     log_level: str = Field(default="INFO")
+    elixir_protocol_exchange: str = Field(default="BINANCE")
     debug_console: bool = Field(default=False)
     strategy_report_interval: float = Field(default=900)
     logger_override_whitelist: List = Field(
