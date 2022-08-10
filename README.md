@@ -10,7 +10,7 @@ Hummingbot is an open source client-side framework that helps you build, manage,
 
 ## Elixir protocol fork
 
-This fork implements support for working with a custom data feed provided by Elixir protocol, right now users can test a local datafeeds service running on 0.0.0.0:5000 (this is set hummingbot/hummingbot/connectors/elixir/elixir_constants.py).
+This fork implements support for working with a custom data feed provided by Elixir protocol, you can test a local datafeeds service running on 0.0.0.0:5000 (this is set here `/hummingbot/connector/exchange/elixir/elixir_constants.py`)
 
 After installing hummingbot from this source following the official documentation, you can test running hummingbot with elixir datafeeds:
 ```shell
