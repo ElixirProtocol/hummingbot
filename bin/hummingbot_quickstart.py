@@ -34,9 +34,6 @@ from hummingbot.core.gateway import start_existing_gateway_container
 from hummingbot.core.management.console import start_management_console
 from hummingbot.core.utils.async_utils import safe_gather
 
-# import pydevd_pycharm
-# pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
-
 
 class CmdlineParser(argparse.ArgumentParser):
     def __init__(self):

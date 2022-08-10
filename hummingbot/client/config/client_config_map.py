@@ -273,6 +273,8 @@ TELEGRAM_MODES = {
     TelegramDisabledMode.Config.title: TelegramDisabledMode,
 }
 
+ELIXIR_EXCHANGES = ["BINANCE"]
+
 
 class DBMode(BaseClientModel, ABC):
     @abstractmethod
@@ -585,7 +587,13 @@ class CommandShortcutModel(BaseModel):
 class ClientConfigMap(BaseClientModel):
     instance_id: str = Field(default=generate_client_id())
     log_level: str = Field(default="INFO")
-    elixir_protocol_exchange: str = Field(default="BINANCE")
+    elixir_protocol_exchange: str = Field(
+        default="BINANCE",
+        description="Enter your elixir protocol exchange",
+        client_data=ClientFieldData(
+            prompt=lambda cm: f"Select the desired exchange for elixir protocol ({'/'.join(ELIXIR_EXCHANGES)})"
+        )
+    )
     debug_console: bool = Field(default=False)
     strategy_report_interval: float = Field(default=900)
     logger_override_whitelist: List = Field(

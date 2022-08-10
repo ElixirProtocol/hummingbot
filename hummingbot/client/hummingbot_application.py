@@ -44,6 +44,9 @@ from hummingbot.strategy.strategy_base import StrategyBase
 
 s_logger = None
 
+# import pydevd_pycharm
+# pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
+
 
 class HummingbotApplication(*commands):
     KILL_TIMEOUT = 10.0
