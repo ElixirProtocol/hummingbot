@@ -153,31 +153,27 @@ class ElixirExchange(ExchangePyBase):
                            trade_type: TradeType,
                            order_type: OrderType,
                            price: Decimal) -> Tuple[str, float]:
-
-        api_params = {"symbol": await self.exchange_symbol_associated_to_pair(trading_pair),
-                      "side": trade_type.name.lower(),
-                      "type": "limit",
-                      "size": f"{amount:f}",
-                      "price": f"{price:f}",
-                      "clientOrderId": order_id,
-                      }
-        order_result = await self._api_post(
-            path_url=CONSTANTS.CREATE_ORDER_PATH_URL,
-            data=api_params,
-            is_auth_required=True)
-        exchange_order_id = str(order_result["data"]["order_id"])
-
-        return exchange_order_id, self.current_timestamp
+        # Not implemented
+        print("_place_order")
+        pass
+        # api_params = {"symbol": await self.exchange_symbol_associated_to_pair(trading_pair),
+        #               "side": trade_type.name.lower(),
+        #               "type": "limit",
+        #               "size": f"{amount:f}",
+        #               "price": f"{price:f}",
+        #               "clientOrderId": order_id,
+        #               }
+        # order_result = await self._api_post(
+        #     path_url=CONSTANTS.CREATE_ORDER_PATH_URL,
+        #     data=api_params,
+        #     is_auth_required=True)
+        # exchange_order_id = str(order_result["data"]["order_id"])
+        #
+        # return exchange_order_id, self.current_timestamp
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
-        api_params = {
-            "clientOrderId": order_id,
-        }
-        cancel_result = await self._api_post(
-            path_url=CONSTANTS.CANCEL_ORDER_PATH_URL,
-            data=api_params,
-            is_auth_required=True)
-        return cancel_result.get("data", {}).get("result", False)
+        # Bots never place cancellations. Validators are responsible for that.
+        pass
 
     async def _format_trading_rules(self, symbols_details: Dict[str, Any]) -> List[TradingRule]:
         """
@@ -239,13 +235,17 @@ class ElixirExchange(ExchangePyBase):
         """
         local_asset_names = set(self._account_balances.keys())
         remote_asset_names = set()
+
+        params = {"exchange": self.protocol_exchange}
+
         account_info = await self._api_get(
             path_url=CONSTANTS.GET_ACCOUNT_SUMMARY_PATH_URL,
-            is_auth_required=True)
-        for account in account_info["data"]["wallet"]:
-            asset_name = account["id"]
-            self._account_available_balances[asset_name] = Decimal(str(account["available"]))
-            self._account_balances[asset_name] = Decimal(str(account["available"])) + Decimal(str(account["frozen"]))
+            params=params
+        )
+
+        for asset_name, account in account_info["data"].items():
+            self._account_available_balances[asset_name] = Decimal(str(account["balance"]))
+            self._account_balances[asset_name] = Decimal(str(account["balance"])) + Decimal(str(account["reserved"]))
             remote_asset_names.add(asset_name)
 
         asset_names_to_remove = local_asset_names.difference(remote_asset_names)
@@ -347,10 +347,12 @@ class ElixirExchange(ExchangePyBase):
                 event_type = event_message.get("table")
                 execution_data = event_message.get("data", [])
 
-                if event_type == CONSTANTS.PRIVATE_ORDER_PROGRESS_CHANNEL_NAME:
+                if event_type == CONSTANTS.ORDER_PROGRESS_CHANNEL_NAME:
                     for each_event in execution_data:
                         try:
                             client_order_id: Optional[str] = each_event.get("client_order_id")
+                            # trading_pair = each_event["symbol"]
+
                             tracked_order = self._order_tracker.fetch_order(client_order_id=client_order_id)
 
                             if tracked_order is not None:
@@ -390,7 +392,7 @@ class ElixirExchange(ExchangePyBase):
 
     def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: List[Dict[str, Any]]):
         mapping = bidict()
-        for symbol_data in exchange_info["symbols"]:
+        for symbol_data in exchange_info["data"]["symbols"]:
             mapping[symbol_data["symbol"]] = combine_to_hb_trading_pair(base=symbol_data["base_currency"],
                                                                         quote=symbol_data["quote_currency"])
         self._set_trading_pair_symbol_map(mapping)

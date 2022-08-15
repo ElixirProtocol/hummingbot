@@ -42,9 +42,11 @@ from hummingbot.strategy.cross_exchange_market_making import CrossExchangeMarket
 from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 from hummingbot.strategy.strategy_base import StrategyBase
 
+# import pydevd_pycharm
+
+
 s_logger = None
 
-# import pydevd_pycharm
 # pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
 
 

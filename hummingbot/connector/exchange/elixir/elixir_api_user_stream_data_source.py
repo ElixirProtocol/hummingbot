@@ -48,8 +48,8 @@ class ElixirAPIUserStreamDataSource(UserStreamTrackerDataSource):
             payload = {
                 "method": "SUBSCRIBE",
                 "params": {
-                    "exchange": CONSTANTS.CENTRALIZED_EXCHANGE_NAME,
-                    "channel": CONSTANTS.PRIVATE_ORDER_PROGRESS_CHANNEL_NAME,
+                    "exchange": self._connector.protocol_exchange,
+                    "channel": CONSTANTS.ORDER_PROGRESS_CHANNEL_NAME,
                     "symbols": symbols
                 }
             }

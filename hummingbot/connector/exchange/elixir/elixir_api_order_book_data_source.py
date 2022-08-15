@@ -157,8 +157,6 @@ class ElixirAPIOrderBookDataSource(OrderBookTrackerDataSource):
             symbols = [await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
                        for trading_pair in self._trading_pairs]
 
-            print()
-
             payload = {
                 "method": "SUBSCRIBE",
                 "params": {
