@@ -423,7 +423,6 @@ class ExchangePyBase(ExchangeBase, ABC):
         :param order_type: the type of order to create (MARKET, LIMIT, LIMIT_MAKER)
         :param price: the order price
         """
-        exchange_order_id = ""
         trading_rule = self._trading_rules[trading_pair]
 
         if order_type in [OrderType.LIMIT, OrderType.LIMIT_MAKER]:
@@ -432,16 +431,6 @@ class ExchangePyBase(ExchangeBase, ABC):
             amount = self.quantize_order_amount(trading_pair=trading_pair, amount=amount, price=quantize_amount_price)
         else:
             amount = self.quantize_order_amount(trading_pair=trading_pair, amount=amount)
-
-        self.start_tracking_order(
-            order_id=order_id,
-            exchange_order_id=None,
-            trading_pair=trading_pair,
-            order_type=order_type,
-            trade_type=trade_type,
-            price=price,
-            amount=amount
-        )
 
         if order_type not in self.supported_order_types():
             self.logger().error(f"{order_type} is not in the list of supported order types")
@@ -460,23 +449,13 @@ class ExchangePyBase(ExchangeBase, ABC):
             self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair)
 
         try:
-            exchange_order_id, update_timestamp = await self._place_order(
+            await self._place_order(
                 order_id=order_id,
                 trading_pair=trading_pair,
                 amount=amount,
                 trade_type=trade_type,
                 order_type=order_type,
                 price=price)
-
-            order_update: OrderUpdate = OrderUpdate(
-                client_order_id=order_id,
-                exchange_order_id=exchange_order_id,
-                trading_pair=trading_pair,
-                update_timestamp=update_timestamp,
-                new_state=OrderState.OPEN,
-            )
-            self._order_tracker.process_order_update(order_update)
-
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -487,7 +466,6 @@ class ExchangePyBase(ExchangeBase, ABC):
                 app_warning_msg=f"Failed to submit buy order to {self.name_cap}. Check API key and network connection."
             )
             self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair)
-        return order_id, exchange_order_id
 
     def _update_order_after_failure(self, order_id: str, trading_pair: str):
         order_update: OrderUpdate = OrderUpdate(

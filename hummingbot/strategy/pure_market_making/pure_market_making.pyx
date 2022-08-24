@@ -583,31 +583,22 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         market, trading_pair, base_asset, quote_asset = self._market_info
         price = self.get_price()
         active_orders = self.active_orders
-        no_sells = len([o for o in active_orders if not o.is_buy and o.client_order_id and
-                        not self._hanging_orders_tracker.is_order_id_in_hanging_orders(o.client_order_id)])
+        no_sells = len([o for o in active_orders if not o.is_buy and o.client_order_id])
         active_orders.sort(key=lambda x: x.price, reverse=True)
         columns = ["Level", "Type", "Price", "Spread", "Amount (Orig)", "Amount (Adj)", "Age"]
         data = []
         lvl_buy, lvl_sell = 0, 0
         for idx in range(0, len(active_orders)):
             order = active_orders[idx]
-            is_hanging_order = self._hanging_orders_tracker.is_order_id_in_hanging_orders(order.client_order_id)
-            if not is_hanging_order:
-                if order.is_buy:
-                    level = lvl_buy + 1
-                    lvl_buy += 1
-                else:
-                    level = no_sells - lvl_sell
-                    lvl_sell += 1
+            if order.is_buy:
+                level = lvl_buy + 1
+                lvl_buy += 1
+            else:
+                level = no_sells - lvl_sell
+                lvl_sell += 1
             spread = 0 if price == 0 else abs(order.price - price)/price
             age = pd.Timestamp(order_age(order, self._current_timestamp), unit='s').strftime('%H:%M:%S')
-
-            if is_hanging_order:
-                level_for_calculation = lvl_buy if order.is_buy else lvl_sell
-                amount_orig = self._order_amount + ((level_for_calculation - 1) * self._order_level_amount)
-                level = "hang"
-            else:
-                amount_orig = ""
+            amount_orig = ""
 
             data.append([
                 level,
@@ -623,7 +614,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
     def market_status_data_frame(self, market_trading_pair_tuples: List[MarketTradingPairTuple]) -> pd.DataFrame:
         markets_data = []
-        markets_columns = ["Exchange", "Market", "Best Bid", "Best Ask", f"Ref Price ({self._price_type.name})"]
+        markets_columns = ["Protocol", "Exchange", "Market", "Best Bid", "Best Ask", f"Ref Price ({self._price_type.name})"]
         if self._price_type is PriceType.LastOwnTrade and self._last_own_trade_price.is_nan():
             markets_columns[-1] = "Ref Price (MidPrice)"
         market_books = [(self._market_info.market, self._market_info.trading_pair)]
@@ -648,6 +639,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 ref_price = self._asset_price_delegate.get_price_by_type(self._price_type)
             markets_data.append([
                 market.display_name,
+                market.protocol_exchange,
                 trading_pair,
                 float(bid_price),
                 float(ask_price),
@@ -678,12 +670,12 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                                        formatters={0: ("{:<" + str(first_col_length) + "}").format}).split("\n")
         lines.extend(["", "  Assets:"] + ["    " + line for line in df_lines])
 
-        # See if there're any open orders.
+        # See if there are any orders.
         if len(self.active_orders) > 0:
             df = map_df_to_str(self.active_orders_df())
-            lines.extend(["", "  Orders:"] + ["    " + line for line in df.to_string(index=False).split("\n")])
+            lines.extend(["", "  Latest order proposals:"] + ["    " + line for line in df.to_string(index=False).split("\n")])
         else:
-            lines.extend(["", "  No active maker orders."])
+            lines.extend(["", "  No maker orders sent."])
 
         warning_lines.extend(self.balance_warning([self._market_info]))
 
@@ -762,11 +754,6 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 if not self._take_if_crossed:
                     self.c_filter_out_takers(proposal)
 
-            self._hanging_orders_tracker.process_tick()
-
-            self.c_cancel_active_orders_on_max_age_limit()
-            self.c_cancel_active_orders(proposal)
-            self.c_cancel_orders_below_min_spread()
             if self.c_to_create_orders(proposal):
                 self.c_execute_orders_proposal(proposal)
         finally:
@@ -1245,21 +1232,18 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 self.c_cancel_order(self._market_info, order.client_order_id)
 
     cdef bint c_to_create_orders(self, object proposal):
-        non_hanging_orders_non_cancelled = [o for o in self.active_non_hanging_orders if not
-                                            self._hanging_orders_tracker.is_potential_hanging_order(o)]
         return (self._create_timestamp < self._current_timestamp
                 and (not self._should_wait_order_cancel_confirmation or
                      len(self._sb_order_tracker.in_flight_cancels) == 0)
-                and proposal is not None
-                and len(non_hanging_orders_non_cancelled) == 0)
+                and proposal is not None)
 
     cdef c_execute_orders_proposal(self, object proposal):
         cdef:
             double expiration_seconds = NaN
             str bid_order_id, ask_order_id
             bint orders_created = False
-        # Number of pair of orders to track for hanging orders
-        number_of_pairs = min((len(proposal.buys), len(proposal.sells))) if self._hanging_orders_enabled else 0
+        self.stop_tracking_limit_orders()
+        self.stop_tracking_market_orders()
 
         if len(proposal.buys) > 0:
             if self._logging_options & self.OPTION_LOG_CREATE_ORDER:
@@ -1278,12 +1262,6 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     price=buy.price,
                     expiration_seconds=expiration_seconds
                 )
-                orders_created = True
-                if idx < number_of_pairs:
-                    order = next((o for o in self.active_orders if o.client_order_id == bid_order_id))
-                    if order:
-                        self._hanging_orders_tracker.add_current_pairs_of_proposal_orders_executed_by_strategy(
-                            CreatedPairOfOrders(order, None))
         if len(proposal.sells) > 0:
             if self._logging_options & self.OPTION_LOG_CREATE_ORDER:
                 price_quote_str = [f"{sell.size.normalize()} {self.base_asset}, "
@@ -1301,13 +1279,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     price=sell.price,
                     expiration_seconds=expiration_seconds
                 )
-                orders_created = True
-                if idx < number_of_pairs:
-                    order = next((o for o in self.active_orders if o.client_order_id == ask_order_id))
-                    if order:
-                        self._hanging_orders_tracker.current_created_pairs_of_orders[idx].sell_order = order
-        if orders_created:
-            self.set_timers()
+
+        self.set_timers()
 
     cdef set_timers(self):
         cdef double next_cycle = self._current_timestamp + self._order_refresh_time

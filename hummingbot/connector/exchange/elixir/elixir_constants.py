@@ -22,9 +22,9 @@ GET_TRADING_RULES_PATH_URL = "symbols"
 GET_ORDER_BOOK_PATH_URL = "symbols/book"
 GET_ACCOUNT_SUMMARY_PATH_URL = "wallet"
 CHECK_NETWORK_PATH_URL = "health"
+CREATE_ORDER_PATH_URL = "submit_order"
 
 GET_LAST_TRADING_PRICES_PATH_URL = "spot/v1/ticker"
-CREATE_ORDER_PATH_URL = "spot/v1/submit_order"
 GET_ORDER_DETAIL_PATH_URL = "spot/v1/order_detail"
 GET_TRADE_DETAIL_PATH_URL = "spot/v1/trades"
 
@@ -40,19 +40,19 @@ RATE_LIMITS = [
     RateLimit(limit_id=GET_ORDER_BOOK_PATH_URL, limit=30, time_interval=5),
     RateLimit(limit_id=GET_ACCOUNT_SUMMARY_PATH_URL, limit=30, time_interval=5),
     RateLimit(limit_id=CHECK_NETWORK_PATH_URL, limit=10, time_interval=1),
+    RateLimit(limit_id=CREATE_ORDER_PATH_URL, limit=150, time_interval=5),
     # RateLimit(limit_id=GET_LAST_TRADING_PRICES_PATH_URL, limit=30, time_interval=5),
-    # RateLimit(limit_id=CREATE_ORDER_PATH_URL, limit=150, time_interval=5),
     # RateLimit(limit_id=GET_ORDER_DETAIL_PATH_URL, limit=150, time_interval=5),
     # RateLimit(limit_id=GET_TRADE_DETAIL_PATH_URL, limit=30, time_interval=5),
 ]
 
 ORDER_STATE = {
-    "1": OrderState.FAILED,
-    "2": OrderState.OPEN,
-    "3": OrderState.FAILED,
-    "4": OrderState.OPEN,
-    "5": OrderState.PARTIALLY_FILLED,
-    "6": OrderState.FILLED,
-    "7": OrderState.PENDING_CANCEL,
-    "8": OrderState.CANCELED,
+    "PENDING": OrderState.PENDING_CREATE,
+    "NEW": OrderState.OPEN,
+    "FILLED": OrderState.FILLED,
+    "PARTIALLY_FILLED": OrderState.PARTIALLY_FILLED,
+    "PENDING_CANCEL": OrderState.OPEN,
+    "CANCELED": OrderState.CANCELED,
+    "REJECTED": OrderState.FAILED,
+    "EXPIRED": OrderState.FAILED,
 }

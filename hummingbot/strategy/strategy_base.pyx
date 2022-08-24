@@ -277,10 +277,10 @@ cdef class StrategyBase(TimeIterator):
             quote_balance = market_trading_pair_tuple.market.get_balance(market_trading_pair_tuple.quote_asset)
             if base_balance <= Decimal("0.0001") and not isinstance(market_trading_pair_tuple.market, DerivativeBase):
                 warning_lines.append(f"  {market_trading_pair_tuple.market.name} market "
-                                     f"{market_trading_pair_tuple.base_asset} balance is too low. Cannot place order.")
+                                     f"{market_trading_pair_tuple.base_asset} balance is too low. Cannot propose order.")
             if quote_balance <= Decimal("0.0001"):
                 warning_lines.append(f"  {market_trading_pair_tuple.market.name} market "
-                                     f"{market_trading_pair_tuple.quote_asset} balance is too low. Cannot place order.")
+                                     f"{market_trading_pair_tuple.quote_asset} balance is too low. Cannot propose order.")
         return warning_lines
 
     def network_warning(self, market_trading_pair_tuples: List[MarketTradingPairTuple]) -> List[str]:
@@ -456,41 +456,19 @@ cdef class StrategyBase(TimeIterator):
     # <editor-fold desc="+ Order tracking event handlers">
     # ----------------------------------------------------------------------------------------------------------
     cdef c_did_fail_order_tracker(self, object order_failed_event):
-        cdef:
-            str order_id = order_failed_event.order_id
-            object order_type = order_failed_event.order_type
-            object market_pair = self._sb_order_tracker.c_get_market_pair_from_order_id(order_id)
-
-        if order_type.is_limit_type():
-            self.c_stop_tracking_limit_order(market_pair, order_id)
-        elif order_type == OrderType.MARKET:
-            self.c_stop_tracking_market_order(market_pair, order_id)
+        pass
 
     cdef c_did_cancel_order_tracker(self, object order_cancelled_event):
-        cdef:
-            str order_id = order_cancelled_event.order_id
-            object market_pair = self._sb_order_tracker.c_get_market_pair_from_order_id(order_id)
-
-        self.c_stop_tracking_limit_order(market_pair, order_id)
+        pass
 
     cdef c_did_expire_order_tracker(self, object order_expired_event):
-        self.c_did_cancel_order_tracker(order_expired_event)
+        pass
 
     cdef c_did_complete_buy_order_tracker(self, object order_completed_event):
-        cdef:
-            str order_id = order_completed_event.order_id
-            object market_pair = self._sb_order_tracker.c_get_market_pair_from_order_id(order_id)
-            object order_type = order_completed_event.order_type
-
-        if market_pair is not None:
-            if order_type.is_limit_type():
-                self.c_stop_tracking_limit_order(market_pair, order_id)
-            elif order_type == OrderType.MARKET:
-                self.c_stop_tracking_market_order(market_pair, order_id)
+        pass
 
     cdef c_did_complete_sell_order_tracker(self, object order_completed_event):
-        self.c_did_complete_buy_order_tracker(order_completed_event)
-
+        pass
     # ----------------------------------------------------------------------------------------------------------
     # </editor-fold>
 
@@ -613,11 +591,11 @@ cdef class StrategyBase(TimeIterator):
 
         self.c_start_tracking_limit_order(market_pair, order_id, is_buy, price, quantity)
 
-    cdef c_stop_tracking_limit_order(self, object market_pair, str order_id):
-        self._sb_order_tracker.c_stop_tracking_limit_order(market_pair, order_id)
+    cdef c_stop_tracking_limit_orders(self):
+        self._sb_order_tracker.c_stop_tracking_limit_orders()
 
-    def stop_tracking_limit_order(self, market_pair: MarketTradingPairTuple, order_id: str):
-        self.c_stop_tracking_limit_order(market_pair, order_id)
+    def stop_tracking_limit_orders(self):
+        self.c_stop_tracking_limit_orders()
 
     cdef c_start_tracking_market_order(self, object market_pair, str order_id, bint is_buy, object quantity):
         self._sb_order_tracker.c_start_tracking_market_order(market_pair, order_id, is_buy, quantity)
@@ -625,11 +603,11 @@ cdef class StrategyBase(TimeIterator):
     def start_tracking_market_order(self, market_pair: MarketTradingPairTuple, order_id: str, is_buy: bool, quantity: Decimal):
         self.c_start_tracking_market_order(market_pair, order_id, is_buy, quantity)
 
-    cdef c_stop_tracking_market_order(self, object market_pair, str order_id):
-        self._sb_order_tracker.c_stop_tracking_market_order(market_pair, order_id)
+    cdef c_stop_tracking_market_orders(self):
+        self._sb_order_tracker.c_stop_tracking_market_orders()
 
-    def stop_tracking_market_order(self, market_pair: MarketTradingPairTuple, order_id: str):
-        self.c_stop_tracking_market_order(market_pair, order_id)
+    def stop_tracking_market_orders(self):
+        self.c_stop_tracking_market_orders()
 
     cdef c_track_restored_orders(self, object market_pair):
         cdef:

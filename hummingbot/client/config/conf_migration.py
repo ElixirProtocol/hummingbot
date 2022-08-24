@@ -28,12 +28,6 @@ from hummingbot.client.config.config_data_types import BaseConnectorConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter, save_to_yml
 from hummingbot.client.config.security import Security
 from hummingbot.client.settings import CLIENT_CONFIG_PATH, CONF_DIR_PATH, STRATEGIES_CONF_DIR_PATH
-from hummingbot.strategy.avellaneda_market_making.avellaneda_market_making_config_map_pydantic import (
-    AvellanedaMarketMakingConfigMap,
-)
-from hummingbot.strategy.cross_exchange_market_making.cross_exchange_market_making_config_map_pydantic import (
-    CrossExchangeMarketMakingConfigMap,
-)
 
 encrypted_conf_prefix = "encrypted_"
 encrypted_conf_postfix = ".json"
@@ -295,14 +289,6 @@ def migrate_amm_confs(conf, new_path) -> List[str]:
         }
     if "template_version" in conf:
         conf.pop("template_version")
-    try:
-        config_map = ClientConfigAdapter(AvellanedaMarketMakingConfigMap(**conf))
-        save_to_yml(new_path, config_map)
-        errors = []
-    except Exception as e:
-        logging.getLogger().error(str(e))
-        errors = [str(e)]
-    return errors
 
 
 def migrate_xemm_confs(conf, new_path) -> List[str]:
@@ -330,14 +316,6 @@ def migrate_xemm_confs(conf, new_path) -> List[str]:
         conf.pop("taker_to_maker_quote_conversion_rate")
     if "template_version" in conf:
         conf.pop("template_version")
-    try:
-        config_map = ClientConfigAdapter(CrossExchangeMarketMakingConfigMap(**conf))
-        save_to_yml(new_path, config_map)
-        errors = []
-    except Exception as e:
-        logging.getLogger().error(str(e))
-        errors = [str(e)]
-    return errors
 
 
 def _has_connector_field(conf: Dict) -> bool:

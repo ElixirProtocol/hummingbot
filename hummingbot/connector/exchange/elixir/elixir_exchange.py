@@ -13,7 +13,7 @@ from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
@@ -51,6 +51,8 @@ class ElixirExchange(ExchangePyBase):
 
         super().__init__(client_config_map)
         self.real_time_balance_update = False
+        self._user_stream_tracker_task = None
+        self._user_stream_event_listener_task = None
 
     @property
     def authenticator(self):
@@ -154,7 +156,7 @@ class ElixirExchange(ExchangePyBase):
                            order_type: OrderType,
                            price: Decimal) -> Tuple[str, float]:
         # Not implemented
-        print("_place_order")
+        print(f"Sending {trade_type} order proposal for {trading_pair}.")
         pass
         # api_params = {"symbol": await self.exchange_symbol_associated_to_pair(trading_pair),
         #               "side": trade_type.name.lower(),
@@ -195,9 +197,7 @@ class ElixirExchange(ExchangePyBase):
                          "quote_increment":"1.00000000",
                          "base_min_size":"1.00000000",
                          "base_max_size":"10000000.00000000",
-                         "price_min_precision":6,
                          "price_max_precision":8,
-                         "expiration":"NA",
                          "min_buy_amount":"0.00010000",
                          "min_sell_amount":"0.00010000"
                     },
@@ -351,36 +351,42 @@ class ElixirExchange(ExchangePyBase):
                     for each_event in execution_data:
                         try:
                             client_order_id: Optional[str] = each_event.get("client_order_id")
-                            # trading_pair = each_event["symbol"]
-
                             tracked_order = self._order_tracker.fetch_order(client_order_id=client_order_id)
 
-                            if tracked_order is not None:
-                                new_state = CONSTANTS.ORDER_STATE[each_event["state"]]
-                                event_timestamp = int(each_event["ms_t"]) * 1e-3
-                                is_fill_candidate_by_state = new_state in [OrderState.PARTIALLY_FILLED, OrderState.FILLED]
-                                is_fill_candidate_by_amount = tracked_order.executed_amount_base < Decimal(
-                                    each_event["filled_size"])
+                            if tracked_order is None:
+                                trading_pair = each_event["symbol"]
+                                price = each_event["price"]
+                                amount = each_event["amount"]
+                                trade_type = TradeType.BUY if each_event["side"] == "buy" else TradeType.SELL
 
-                                if is_fill_candidate_by_state and is_fill_candidate_by_amount:
-                                    try:
-                                        trade_fills: Dict[str, Any] = await self._request_order_fills(tracked_order)
-                                        await self._process_order_fill_update(order=tracked_order, fill_update=trade_fills)
-                                    except asyncio.CancelledError:
-                                        raise
-                                    except Exception:
-                                        self.logger().exception("Unexpected error requesting order fills for "
-                                                                f"{tracked_order.client_order_id}")
+                                if each_event["type"] == "limit":
+                                    order_type = OrderType.LIMIT
+                                elif each_event["type"] == "market":
+                                    order_type = OrderType.MARKET
+                                else:
+                                    order_type = OrderType.LIMIT_MAKER
 
-                                order_update = OrderUpdate(
-                                    trading_pair=tracked_order.trading_pair,
-                                    update_timestamp=event_timestamp,
-                                    new_state=new_state,
-                                    client_order_id=client_order_id,
-                                    exchange_order_id=each_event["order_id"],
+                                self.start_tracking_order(
+                                    order_id=client_order_id,
+                                    exchange_order_id=each_event["id"],
+                                    trading_pair=trading_pair,
+                                    order_type=order_type,
+                                    trade_type=trade_type,
+                                    price=price,
+                                    amount=amount
                                 )
-                                self._order_tracker.process_order_update(order_update=order_update)
 
+                            new_state = CONSTANTS.ORDER_STATE[each_event["status"]]
+                            event_timestamp = int(each_event["timestamp"])
+
+                            order_update = OrderUpdate(
+                                trading_pair=trading_pair,
+                                update_timestamp=event_timestamp,
+                                new_state=new_state,
+                                client_order_id=client_order_id,
+                                exchange_order_id=each_event["id"],
+                            )
+                            self._order_tracker.process_order_update(order_update=order_update)
                         except asyncio.CancelledError:
                             raise
                         except Exception:
